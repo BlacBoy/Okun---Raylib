@@ -1,0 +1,58 @@
+## .NET / C# build output
+bin/
+obj/
+out/
+*.pdb
+*.dll
+*.exe
+
+## Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## Rider
+.idea/
+*.sln.iml
+
+## VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+## NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Raylib-cs native runtime binaries
+## (restored automatically via NuGet — no need to commit them)
+runtimes/
+*.dylib
+*.so
+
+## OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+## Logs / crash dumps
+*.log
+*.dmp
+
+## Publish output
+publish/
+*.pubxml
+*.pubxml.user
+
+## Test results
+[Tt]est[Rr]esult*/
+*.trx
