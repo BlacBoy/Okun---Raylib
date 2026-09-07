@@ -13,6 +13,9 @@ out/
 *.userosscache
 *.sln.docstates
 
+## Misc
+okun-game-developer.agent.md
+
 ## Rider
 .idea/
 *.sln.iml
