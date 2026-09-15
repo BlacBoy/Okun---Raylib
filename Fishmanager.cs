@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Raylib_cs;
@@ -24,6 +25,13 @@ namespace OkunGame
 
         public int CaughtCount { get; private set; }
         public int Count => fish.Count;
+
+        /// <summary>
+        /// Fired with the fish's position at the moment it's collected. FishManager has
+        /// no idea particles exist - this just lets Program.cs (or anything else) react
+        /// to a capture without FishManager depending on the particle system.
+        /// </summary>
+        public event Action<Vector3>? FishCaptured;
 
         public FishManager(Vector3 boundsMin, Vector3 boundsMax, float panicRadius, int initialCount)
         {
@@ -70,6 +78,7 @@ namespace OkunGame
 
                 if (f.IsCaptured && Vector3.Distance(f.Position, submarinePosition) < CollectDistance)
                 {
+                    FishCaptured?.Invoke(f.Position);
                     fish.RemoveAt(i);
                     CaughtCount++;
                     SpawnFish(); // keep the population topped up
