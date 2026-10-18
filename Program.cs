@@ -22,16 +22,12 @@ namespace OkunGame
             camera.FovY = 60.0f;
             camera.Projection = CameraProjection.Perspective;
 
-            // Underwater fog + lighting shader — applied over all 3D draws (sub, grid,
-            // fish) via BeginShaderMode.
-            Shader fogShader = Raylib.LoadShader("Resources/Shaders/fog.vs", "Resources/Shaders/fog.fs");
-            int fogViewPosLoc = Raylib.GetShaderLocation(fogShader, "viewPos");
-            int fogColorLoc = Raylib.GetShaderLocation(fogShader, "fogColor");
-            int fogStartLoc = Raylib.GetShaderLocation(fogShader, "fogStart");
-            int fogEndLoc = Raylib.GetShaderLocation(fogShader, "fogEnd");
-            int lightDirectionLoc = Raylib.GetShaderLocation(fogShader, "lightDirection");
-            int lightColorLoc = Raylib.GetShaderLocation(fogShader, "lightColor");
-            int ambientColorLoc = Raylib.GetShaderLocation(fogShader, "ambientColor");
+            // Underwater fog + lighting. SceneShaders holds two variants of one shader: a
+            // primitive variant for raylib's immediate-mode shapes (fish, particles, sediment)
+            // and a model variant for the submarine. The grid and debug wireframes are
+            // deliberately drawn outside any shader (see DEBUG GEOMETRY below) so they stay
+            // visible regardless of shader state.
+            SceneShaders sceneShaders = new SceneShaders("Resources/Shaders");
 
             Vector3 fogColor = new Vector3(0.04f, 0.12f, 0.20f); // matches the deep-ocean clear color
             const float fogStart = 10.0f;  // fog begins fading things out past this distance
@@ -44,12 +40,13 @@ namespace OkunGame
             Vector4 lightColor = new Vector4(0.65f, 0.85f, 1.0f, 1.0f);
             Vector4 ambientColor = new Vector4(0.08f, 0.14f, 0.18f, 1.0f);
 
-            Raylib.SetShaderValue(fogShader, fogColorLoc, fogColor, ShaderUniformDataType.Vec3);
-            Raylib.SetShaderValue(fogShader, fogStartLoc, fogStart, ShaderUniformDataType.Float);
-            Raylib.SetShaderValue(fogShader, fogEndLoc, fogEnd, ShaderUniformDataType.Float);
-            Raylib.SetShaderValue(fogShader, lightDirectionLoc, lightDirection, ShaderUniformDataType.Vec3);
-            Raylib.SetShaderValue(fogShader, lightColorLoc, lightColor, ShaderUniformDataType.Vec4);
-            Raylib.SetShaderValue(fogShader, ambientColorLoc, ambientColor, ShaderUniformDataType.Vec4);
+            sceneShaders.SetEnvironment(fogColor, fogStart, fogEnd, lightDirection, lightColor, ambientColor);
+
+            // Submarine model (replaces the placeholder cube). The scale tunes how big it looks
+            // next to the fish and the chase camera; the raw model is about 4.3 x 4.7 x 7.5 units.
+            const float subModelScale = 0.6f;
+            SubmarineModel submarine = new SubmarineModel("Resources/Models/Sub_DD.glb", sceneShaders.ForModels, subModelScale);
+            bool showSubBounds = false; // F2 toggles the debug bounding box
 
             // 3. Submarine state
             Vector3 subPosition = new Vector3(0.0f, 0.0f, 0.0f);
@@ -115,10 +112,11 @@ namespace OkunGame
 
                 // ---- Debug: toggle fish state colors ----
                 if (Raylib.IsKeyPressed(KeyboardKey.F1)) debugFishColors = !debugFishColors;
+                if (Raylib.IsKeyPressed(KeyboardKey.F2)) showSubBounds = !showSubBounds;
 
                 // Nearest hookable fish - reused for both the debug hook-test key and
                 // the reticle's target-lock feedback, so we only search once per frame.
-                Fish nearestHookable = fishManager.GetNearestFish(subPosition, hookTestRange);
+                Fish? nearestHookable = fishManager.GetNearestFish(subPosition, hookTestRange);
 
                 if (Raylib.IsKeyPressed(KeyboardKey.H))
                 {
@@ -151,43 +149,41 @@ namespace OkunGame
                 float rollRad = subRoll * (MathF.PI / 180.0f);
                 camera.Up = new Vector3(MathF.Sin(rollRad), MathF.Cos(rollRad), 0.0f);
 
-                // Keep the fog shader's camera-position uniform current every frame
-                Raylib.SetShaderValue(fogShader, fogViewPosLoc, camera.Position, ShaderUniformDataType.Vec3);
+                // Keep both shader variants' camera-position uniform current every frame
+                sceneShaders.SetViewPosition(camera.Position);
 
                 // ---- Draw ----
                 Raylib.BeginDrawing();
                 Raylib.ClearBackground(new Color(10, 25, 47, 255));
 
                 Raylib.BeginMode3D(camera);
-                Raylib.BeginShaderMode(fogShader);
 
-                    // Draw the submarine, oriented to match its yaw / pitch / roll
-                    Rlgl.PushMatrix();
-                        Rlgl.Translatef(subPosition.X, subPosition.Y, subPosition.Z);
-                        Rlgl.Rotatef(subYaw * (180.0f / MathF.PI), 0.0f, 1.0f, 0.0f);
-                        Rlgl.Rotatef(-subPitch * (180.0f / MathF.PI), 1.0f, 0.0f, 0.0f);
-                        Rlgl.Rotatef(subRoll, 0.0f, 0.0f, 1.0f);
-                        Raylib.DrawCube(Vector3.Zero, 2.0f, 1.5f, 4.0f, Color.Red);
-                    Rlgl.PopMatrix();
+                    // The submarine is a real model. DrawModel uses each material's own shader
+                    // (the model variant, bound in SubmarineModel), so no BeginShaderMode here.
+                    submarine.Draw(subPosition, subYaw, subPitch, subRoll);
 
-                    fishManager.Draw(debugFishColors);
-
-                    sedimentField.Draw();
-                    particleSystem.Draw();
-
-                Raylib.EndShaderMode();
+                    // Fish, sediment, and particles are immediate-mode shapes, which need the
+                    // primitive variant of the shader applied via BeginShaderMode.
+                    Raylib.BeginShaderMode(sceneShaders.ForPrimitives);
+                        fishManager.Draw(debugFishColors);
+                        sedimentField.Draw();
+                        particleSystem.Draw();
+                    Raylib.EndShaderMode();
 
                 // =========================================================
                 // DEBUG GEOMETRY (unlit - wireframes/grid stay outside the shader
                 // so they're always visible regardless of shader state)
                 // =========================================================
-                Rlgl.PushMatrix();
-                    Rlgl.Translatef(subPosition.X, subPosition.Y, subPosition.Z);
-                    Rlgl.Rotatef(subYaw * (180.0f / MathF.PI), 0.0f, 1.0f, 0.0f);
-                    Rlgl.Rotatef(-subPitch * (180.0f / MathF.PI), 1.0f, 0.0f, 0.0f);
-                    Rlgl.Rotatef(subRoll, 0.0f, 0.0f, 1.0f);
-                    Raylib.DrawCubeWires(Vector3.Zero, 2.0f, 1.5f, 4.0f, Color.White);
-                Rlgl.PopMatrix();
+                if (showSubBounds)
+                {
+                    Rlgl.PushMatrix();
+                        Rlgl.Translatef(subPosition.X, subPosition.Y, subPosition.Z);
+                        Rlgl.Rotatef(subYaw * (180.0f / MathF.PI), 0.0f, 1.0f, 0.0f);
+                        Rlgl.Rotatef(-subPitch * (180.0f / MathF.PI), 1.0f, 0.0f, 0.0f);
+                        Rlgl.Rotatef(subRoll, 0.0f, 0.0f, 1.0f);
+                        Raylib.DrawCubeWires(Vector3.Zero, submarine.Size.X, submarine.Size.Y, submarine.Size.Z, Color.White);
+                    Rlgl.PopMatrix();
+                }
 
                 Raylib.DrawGrid(40, 1.0f);
 
@@ -202,15 +198,16 @@ namespace OkunGame
 
                 // Small, unobtrusive controls hint - still a dev build for now
                 Raylib.DrawText(
-                    "Mouse: steer | W/S: up-down | A/D: roll | H: hook (test) | F1: fish debug colors",
+                    "Mouse: steer | W/S: up-down | A/D: roll | H: hook (test) | F1: fish colors | F2: sub bounds",
                     10, screenHeight - 55, 14, new Color(255, 255, 255, 140)
                 );
 
                 Raylib.EndDrawing();
             }
 
-            // 7. Cleanup
-            Raylib.UnloadShader(fogShader);
+            // 7. Cleanup - the submarine goes before the shaders (see SceneShaders.Unload)
+            submarine.Unload();
+            sceneShaders.Unload();
             Raylib.CloseWindow();
         }
     }

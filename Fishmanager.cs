@@ -100,9 +100,9 @@ namespace OkunGame
             }
         }
 
-        public Fish GetNearestFish(Vector3 position, float maxDistance)
+        public Fish? GetNearestFish(Vector3 position, float maxDistance)
         {
-            Fish nearest = null;
+            Fish? nearest = null;
             float nearestDist = maxDistance;
 
             foreach (Fish f in fish)
