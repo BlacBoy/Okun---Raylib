@@ -15,9 +15,11 @@ namespace OkunGame
         private const float LifeTime = 0.5f;
         private const float Speed = 2.5f;
 
-        public static void Spawn(ParticleSystem particles, Vector3 position)
+        public static void Spawn(ParticleSystem particles, Vector3 position, int count = ParticleCount, Color? color = null)
         {
-            for (int i = 0; i < ParticleCount; i++)
+            Color burstColor = color ?? new Color((byte)255, (byte)240, (byte)180, (byte)255);
+
+            for (int i = 0; i < count; i++)
             {
                 Vector3 direction = RandomDirection();
 
@@ -30,7 +32,7 @@ namespace OkunGame
                     LifeTime = LifeTime,
                     StartSize = 0.12f,
                     EndSize = 0.0f,
-                    Color = new Color((byte)255, (byte)240, (byte)180, (byte)255),
+                    Color = burstColor,
                     FadeOut = true
                 });
             }

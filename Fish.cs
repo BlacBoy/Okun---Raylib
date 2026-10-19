@@ -33,6 +33,11 @@ namespace OkunGame
 
         public string CurrentStateName => currentState.GetType().Name;
         public bool IsCaptured => currentState is CapturedState;
+        public bool IsResisting => currentState is ResistingState;
+
+        /// <summary>Set by FishManager once the fish has been reeled in and removed, so anything still
+        /// holding a reference (like the hook launcher) knows to let go.</summary>
+        public bool IsCollected { get; internal set; }
         public bool IsHookable => !(currentState is ResistingState) && !(currentState is CapturedState);
 
         public Fish(Vector3 spawnPosition, float baseSpeed, float panicSpeed, float size, Color bodyColor)

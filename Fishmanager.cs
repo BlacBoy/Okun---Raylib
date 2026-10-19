@@ -79,6 +79,7 @@ namespace OkunGame
                 if (f.IsCaptured && Vector3.Distance(f.Position, submarinePosition) < CollectDistance)
                 {
                     FishCaptured?.Invoke(f.Position);
+                    f.IsCollected = true;
                     fish.RemoveAt(i);
                     CaughtCount++;
                     SpawnFish(); // keep the population topped up
@@ -118,6 +119,59 @@ namespace OkunGame
             }
 
             return nearest;
+        }
+
+        /// <summary>
+        /// Lock-on test: the hookable fish closest to the line of fire (smallest angle off
+        /// 'direction'), within range. A fish's own size widens the allowed angle, so big
+        /// fish are easier to line up than small ones, and distant fish are harder.
+        /// </summary>
+        public Fish? GetFishAlongRay(Vector3 origin, Vector3 direction, float maxDistance, float maxAngleRadians)
+        {
+            Fish? best = null;
+            float bestAngle = float.MaxValue;
+
+            foreach (Fish f in fish)
+            {
+                if (!f.IsHookable) continue;
+
+                Vector3 toFish = f.Position - origin;
+                float distance = toFish.Length();
+                if (distance < 0.001f || distance > maxDistance) continue;
+
+                float cosAngle = Math.Clamp(Vector3.Dot(direction, toFish / distance), -1.0f, 1.0f);
+                float angle = MathF.Acos(cosAngle);
+                float allowed = maxAngleRadians + MathF.Atan2(f.Size, distance);
+
+                if (angle <= allowed && angle < bestAngle)
+                {
+                    bestAngle = angle;
+                    best = f;
+                }
+            }
+
+            return best;
+        }
+
+        /// <summary>The hookable fish whose body (plus 'extraReach') contains 'point', if any - used by the flying hook.</summary>
+        public Fish? GetHookableFishAt(Vector3 point, float extraReach)
+        {
+            Fish? best = null;
+            float bestDistance = float.MaxValue;
+
+            foreach (Fish f in fish)
+            {
+                if (!f.IsHookable) continue;
+
+                float distance = Vector3.Distance(f.Position, point);
+                if (distance <= f.Size + extraReach && distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    best = f;
+                }
+            }
+
+            return best;
         }
 
         private static float Lerp(float a, float b, float t) => a + (b - a) * t;

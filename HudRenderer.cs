@@ -5,8 +5,8 @@ using Raylib_cs;
 namespace OkunGame
 {
     /// <summary>
-    /// Draws all 2D HUD elements: depth gauge, fish-caught counter, and the aiming
-    /// reticle. Kept separate from Program.cs so HUD layout/style changes don't touch
+    /// Draws the static 2D HUD elements: depth gauge and fish-caught counter. The aim
+    /// cursor lives in CursorRenderer. Kept separate from Program.cs so HUD layout/style changes don't touch
     /// gameplay code, and so future HUD elements (oxygen, weapon charge, etc.) have an
     /// obvious place to live. Everything here is vector-drawn (no texture assets yet).
     /// </summary>
@@ -21,9 +21,6 @@ namespace OkunGame
         private const int GaugeWidth = 18;
         private const int GaugeHeight = 360;
 
-        // Reticle style
-        private const int ReticleSize = 14;
-        private const int ReticleBracket = 6;
 
         public HudRenderer(int screenWidth, int screenHeight)
         {
@@ -78,33 +75,6 @@ namespace OkunGame
 
             Raylib.DrawText($"x {caughtCount}", panelX + 42, panelY + 12, 22, Color.White);
             Raylib.DrawText($"{populationCount} nearby", panelX + 8, panelY + 34, 12, Color.LightGray);
-        }
-
-        /// <summary>
-        /// Corner-bracket reticle at screen center. Turns green when a hookable fish is
-        /// within range, so the HUD gives real feedback rather than being purely
-        /// decorative. Note this reflects distance-to-submarine (matching the debug 'H'
-        /// hook test), not a true aim raycast through the reticle - that distinction
-        /// matters once real aiming/weapons exist.
-        /// </summary>
-        public void DrawReticle(bool targetLocked)
-        {
-            int cx = screenWidth / 2;
-            int cy = screenHeight / 2;
-            Color color = targetLocked ? Color.Lime : new Color(255, 255, 255, 200);
-
-            DrawBracket(cx - ReticleSize, cy - ReticleSize, 1, 1, color);   // top-left
-            DrawBracket(cx + ReticleSize, cy - ReticleSize, -1, 1, color);  // top-right
-            DrawBracket(cx - ReticleSize, cy + ReticleSize, 1, -1, color);  // bottom-left
-            DrawBracket(cx + ReticleSize, cy + ReticleSize, -1, -1, color); // bottom-right
-
-            Raylib.DrawCircle(cx, cy, 2, color);
-        }
-
-        private void DrawBracket(int x, int y, int dirX, int dirY, Color color)
-        {
-            Raylib.DrawLine(x, y, x + dirX * ReticleBracket, y, color);
-            Raylib.DrawLine(x, y, x, y + dirY * ReticleBracket, color);
         }
 
         private void DrawFishIcon(int x, int y, float size, Color color)
