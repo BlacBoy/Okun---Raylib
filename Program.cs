@@ -155,9 +155,9 @@ namespace OkunGame
                 camera.Position = subPosition - subForward * cameraDistance + new Vector3(0.0f, cameraHeight, 0.0f);
                 camera.Target = subPosition + subForward * cameraLookAhead;
 
-                // Bank the camera's up vector with the sub's roll for a bit of feel
-                float rollRad = subRoll * (MathF.PI / 180.0f);
-                camera.Up = new Vector3(MathF.Sin(rollRad), MathF.Cos(rollRad), 0.0f);
+                // Bank the camera with the sub's roll for a bit of feel - about the camera's own
+                // forward axis, so the bank looks the same whichever way the sub is heading
+                camera.Up = CameraMath.BankedUp(Vector3.Normalize(camera.Target - camera.Position), subRoll * (MathF.PI / 180.0f));
 
                 // Keep both shader variants' camera-position uniform current every frame
                 sceneShaders.SetViewPosition(camera.Position);
@@ -250,6 +250,9 @@ namespace OkunGame
             {
                 case HookPhase.Flying:
                     return CursorMode.HookInFlight;
+
+                case HookPhase.Retracting:
+                    return CursorMode.HookRetracting; // can't fire again until it's home - don't show a lock
 
                 case HookPhase.Attached:
                     return hook.Target is { IsResisting: true } ? CursorMode.FishResisting : CursorMode.Reeling;

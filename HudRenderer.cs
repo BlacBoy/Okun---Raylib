@@ -74,7 +74,7 @@ namespace OkunGame
             DrawFishIcon(panelX + 20, panelY + 25, 10, Color.SkyBlue);
 
             Raylib.DrawText($"x {caughtCount}", panelX + 42, panelY + 12, 22, Color.White);
-            Raylib.DrawText($"{populationCount} nearby", panelX + 8, panelY + 34, 12, Color.LightGray);
+            Raylib.DrawText($"{populationCount} in world", panelX + 8, panelY + 34, 12, Color.LightGray);
         }
 
         private void DrawFishIcon(int x, int y, float size, Color color)

@@ -14,16 +14,21 @@ namespace OkunGame
         private const float MaxWanderInterval = 5.0f;
         private const float ArrivalThreshold = 0.5f;
         private const float SteerSharpness = 2.0f;
+        private const float BoundsMargin = 1.5f; // wander targets stay this far inside the world edge
 
         public override void Enter(Fish fish)
         {
             fish.Speed = fish.BaseSpeed;
-            PickNewWanderTarget(fish);
+
+            // Enter() doesn't know the world bounds, so don't pick a target yet: aim at the fish's own
+            // position, which counts as "arrived" and makes the first Update() pick a bounds-aware one.
+            fish.WanderTarget = fish.Position;
+            fish.WanderTimer = 0.0f;
         }
 
         public override void Update(Fish fish, in FishWorldContext ctx, float dt)
         {
-            // Submarine gets close -- initiate Panic mode
+            // Submarine got close -> bail out to Panic immediately
             float distToSub = Vector3.Distance(fish.Position, ctx.SubmarinePosition);
             if (distToSub < ctx.SubmarinePanicRadius)
             {
@@ -34,14 +39,14 @@ namespace OkunGame
             fish.WanderTimer -= dt;
             if (fish.WanderTimer <= 0.0f || Vector3.Distance(fish.Position, fish.WanderTarget) < ArrivalThreshold)
             {
-                PickNewWanderTarget(fish);
+                PickNewWanderTarget(fish, ctx);
             }
 
             Vector3 toTarget = fish.WanderTarget - fish.Position;
             if (toTarget.LengthSquared() > 0.0001f)
             {
                 Vector3 desiredDir = Vector3.Normalize(toTarget);
-                fish.Velocity = Vector3.Lerp(fish.Velocity, desiredDir * fish.Speed, SteerSharpness * dt);
+                fish.Velocity = Vector3.Lerp(fish.Velocity, desiredDir * fish.Speed, dt * SteerSharpness);
             }
 
             fish.Position += fish.Velocity * dt;
@@ -50,10 +55,9 @@ namespace OkunGame
 
         public override void Exit(Fish fish)
         {
-            // Nothing to do here
         }
 
-        private void PickNewWanderTarget(Fish fish)
+        private void PickNewWanderTarget(Fish fish, in FishWorldContext ctx)
         {
             Vector3 offset = new Vector3(
                 RandomSigned() * WanderRadius,
@@ -61,7 +65,12 @@ namespace OkunGame
                 RandomSigned() * WanderRadius
             );
 
-            fish.WanderTarget = fish.Position + offset;
+            // Clamp to a box slightly inside the world. Without this a fish near an edge would often pick
+            // a target out in the void, press against the wall trying to reach it, and sit there until
+            // its wander timer ran out.
+            Vector3 min = ctx.BoundsMin + new Vector3(BoundsMargin);
+            Vector3 max = ctx.BoundsMax - new Vector3(BoundsMargin);
+            fish.WanderTarget = Vector3.Clamp(fish.Position + offset, min, max);
             fish.WanderTimer = MinWanderInterval + (float)Fish.Rng.NextDouble() * (MaxWanderInterval - MinWanderInterval);
         }
 

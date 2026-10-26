@@ -78,6 +78,7 @@ table in `CursorRenderer.cs`, so adding or retuning a mode doesn't touch any gam
 | `Navigate`      | white corner brackets | steering, nothing targeted              |
 | `TargetLocked`  | green diamond         | a hookable fish is under the cursor     |
 | `HookInFlight`  | orange spinning ring  | the hook has been fired                 |
+| `HookRetracting`| grey ring, spinning backwards | the hook is winding back in; it can't be fired again until it's home |
 | `FishResisting` | red pulsing crosshair | the hooked fish is fighting the line    |
 | `Reeling`       | blue spinning diamond | the fish has given in and is reeled in  |
 
@@ -87,14 +88,15 @@ A locked or hooked fish also gets a square bracket marker so it can't be confuse
 
 A third-person chase camera sits behind and above the submarine and looks a little way ahead of it,
 so the sub sits low in the frame with room above it for the cursor to lead the ship. The camera banks
-with the submarine's roll.
+with the submarine's roll, about the camera's own forward axis, so the bank looks the same whichever way
+the submarine is heading (`CameraMath.BankedUp`).
 
 ## How it fits together
 
 - **Steering** - `AimCursor` holds the world-space aim and turns the ship toward it at a capped rate.
   The same aim direction is what the hook fires along, so where the cursor points is both where the
   ship is heading and where it will shoot.
-- **Fish** - each `Fish` delegates to a `FishState` (`IdleSwimState`, `PanicState`, `ResistingState`,
+- **Fish** - each `Fish` (idle fish keep their wander targets inside the world; panicking fish slide along walls instead of pinning against them) delegates to a `FishState` (`IdleSwimState`, `PanicState`, `ResistingState`,
   `CapturedState`). The only thing anything outside the fish code needs to call is `Fish.Hook()`.
   `FishManager` owns spawning, updating, drawing, lock-on queries and collection.
 - **Hook** - `HookLauncher` handles the hook's flight, attachment, rope, and retraction. It only talks
@@ -131,6 +133,7 @@ Okun/
 │   ├── CaptureBurst.cs         # One-off burst (fish capture, hook bite)
 │   └── SedimentField.cs        # Ambient drifting specks
 ├── Rendering/
+│   ├── CameraMath.cs           # Camera banking about the camera's own forward axis
 │   ├── SceneShaders.cs         # Loads and syncs the two shader variants
 │   └── SubmarineModel.cs       # Loads, shades and draws the submarine model
 └── Resources/

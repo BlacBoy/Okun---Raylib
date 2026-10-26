@@ -11,6 +11,7 @@ namespace OkunGame
         Navigate,       // just steering - nothing targeted
         TargetLocked,   // a hookable fish is under the cursor
         HookInFlight,   // hook has been fired and is travelling
+        HookRetracting, // hook is winding back in; it can't be fired again until it's home
         FishResisting,  // hooked fish is fighting the line
         Reeling         // fish has given in and is being reeled to the sub
     }
@@ -39,6 +40,7 @@ namespace OkunGame
             [CursorMode.Navigate]      = new CursorStyle(CursorShape.Brackets,  new Color(255, 255, 255, 210), 16.0f, 0.0f, 0.0f),
             [CursorMode.TargetLocked]  = new CursorStyle(CursorShape.Diamond,   Color.Lime,                    18.0f, 0.0f, 5.0f),
             [CursorMode.HookInFlight]  = new CursorStyle(CursorShape.Ring,      Color.Orange,                  18.0f, 7.0f, 0.0f),
+            [CursorMode.HookRetracting] = new CursorStyle(CursorShape.Ring,      new Color(150, 160, 175, 230), 18.0f, -7.0f, 0.0f), // grey, spinning backwards
             [CursorMode.FishResisting] = new CursorStyle(CursorShape.Crosshair, Color.Red,                     17.0f, 0.0f, 16.0f),
             [CursorMode.Reeling]       = new CursorStyle(CursorShape.Diamond,   Color.SkyBlue,                 15.0f, 3.0f, 0.0f),
         };

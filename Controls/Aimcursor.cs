@@ -8,13 +8,13 @@ namespace OkunGame
     /// moves an AIM DIRECTION in the world (a yaw and a pitch). The cursor you see is that
     /// direction projected onto the screen, and the submarine turns toward it at a limited
     /// turn rate, so:
-    ///   - move the mouse and the cursor moves with it, ahead of the ship
-    ///   - the ship swings round to face where the cursor points
-    ///   - as it catches up, the cursor settles back onto the nose and the ship stops turning
+    ///   - move the mouse and the cursor moves with it, ahead of the Sub
+    ///   - the Sub swings round to face where the cursor points
+    ///   - as it catches up, the cursor settles back onto the nose and the Sub stops turning
     ///
-    /// The aim can only lead the ship by a limited cone so the cursor always stays on screen.
+    /// The aim can only lead the Sub by a limited cone so the cursor always stays on screen.
     /// The same direction is what the hook launcher aims along, so "where the cursor points"
-    /// is both where the ship is heading and where it will shoot.
+    /// is both where the Sub is heading and where it will shoot.
     ///
     /// Angle convention matches the submarine: forward = (sin yaw * cos pitch, sin pitch,
     /// cos yaw * cos pitch), so yaw 0 faces +Z and positive yaw turns toward +X (screen left,
@@ -24,7 +24,7 @@ namespace OkunGame
     {
         private const float DegToRad = MathF.PI / 180.0f;
 
-        // How far the aim may lead the ship (keeps the cursor inside the camera's view)
+        // How far the aim may lead the Sub (keeps the cursor inside the camera's view)
         private const float MaxYawOffset = 35.0f * DegToRad;
         private const float MaxPitchOffset = 20.0f * DegToRad;
 
@@ -35,7 +35,7 @@ namespace OkunGame
         private const float TurnGain = 3.0f;                  // 1/s - higher = snappier
         private const float MaxYawRate = 100.0f * DegToRad;   // radians/sec
         private const float MaxPitchRate = 70.0f * DegToRad;  // radians/sec
-        private const float MaxPitch = 80.0f * DegToRad;      // ship and aim never go past this
+        private const float MaxPitch = 80.0f * DegToRad;      // Sub and aim never go past this
 
         public float AimYaw { get; private set; }
         public float AimPitch { get; private set; }
@@ -43,48 +43,48 @@ namespace OkunGame
         /// <summary>Unit vector in the world pointing where the cursor points.</summary>
         public Vector3 Direction => DirectionFrom(AimYaw, AimPitch);
 
-        /// <summary>Moves the aim by a mouse delta (in pixels), keeping it within the cone ahead of the ship.</summary>
-        public void ApplyMouse(Vector2 mouseDelta, float shipYaw, float shipPitch)
+        /// <summary>Moves the aim by a mouse delta (in pixels), keeping it within the cone ahead of the Sub.</summary>
+        public void ApplyMouse(Vector2 mouseDelta, float subYaw, float subPitch)
         {
-            // Work in offsets relative to the ship (always small) rather than absolute angles.
+            // Work in offsets relative to the Sub (always small) rather than absolute angles.
             // Adding a big mouse flick to an absolute angle and then wrapping it can land on the
             // far side of the circle and clamp the wrong way; a relative offset just saturates.
             // Same sign convention the old direct mouse-look used: mouse right turns right.
-            float yawOffset = WrapPi(AimYaw - shipYaw) - mouseDelta.X * MouseSensitivity;
-            float pitchOffset = (AimPitch - shipPitch) - mouseDelta.Y * MouseSensitivity;
+            float yawOffset = WrapPi(AimYaw - subYaw) - mouseDelta.X * MouseSensitivity;
+            float pitchOffset = (AimPitch - subPitch) - mouseDelta.Y * MouseSensitivity;
 
             yawOffset = Math.Clamp(yawOffset, -MaxYawOffset, MaxYawOffset);
             pitchOffset = Math.Clamp(pitchOffset, -MaxPitchOffset, MaxPitchOffset);
 
-            // Re-anchor on the ship so the angles never drift unbounded
-            AimYaw = shipYaw + yawOffset;
-            AimPitch = Math.Clamp(shipPitch + pitchOffset, -MaxPitch, MaxPitch);
+            // Re-anchor on the Sub so the angles never drift unbounded
+            AimYaw = subYaw + yawOffset;
+            AimPitch = Math.Clamp(subPitch + pitchOffset, -MaxPitch, MaxPitch);
         }
 
-        /// <summary>Turns the ship toward the aim. Call once per frame.</summary>
-        public void SteerShip(ref float shipYaw, ref float shipPitch, float dt)
+        /// <summary>Turns the Sub toward the aim. Call once per frame.</summary>
+        public void SteerShip(ref float subYaw, ref float subPitch, float dt)
         {
-            float yawError = WrapPi(AimYaw - shipYaw);
-            float pitchError = AimPitch - shipPitch;
+            float yawError = WrapPi(AimYaw - subYaw);
+            float pitchError = AimPitch - subPitch;
 
             float yawStep = Math.Clamp(yawError * TurnGain, -MaxYawRate, MaxYawRate) * dt;
             float pitchStep = Math.Clamp(pitchError * TurnGain, -MaxPitchRate, MaxPitchRate) * dt;
 
             // Never step past the aim, however long the frame was. Without this, one long frame
-            // (a hitch, alt-tab, the first frame after loading) swings the ship past its target,
+            // (a hitch, alt-tab, the first frame after loading) swings the Sub past its target,
             // and the overshoot then drags the aim along with it.
             yawStep = Math.Clamp(yawStep, -MathF.Abs(yawError), MathF.Abs(yawError));
             pitchStep = Math.Clamp(pitchStep, -MathF.Abs(pitchError), MathF.Abs(pitchError));
 
-            shipYaw += yawStep;
-            shipPitch = Math.Clamp(shipPitch + pitchStep, -MaxPitch, MaxPitch);
+            subYaw += yawStep;
+            subPitch = Math.Clamp(subPitch + pitchStep, -MaxPitch, MaxPitch);
         }
 
-        /// <summary>Snaps the aim back onto the ship's nose (the ship stops turning).</summary>
-        public void Recenter(float shipYaw, float shipPitch)
+        /// <summary>Snaps the aim back onto the Sub's nose (the Sub stops turning).</summary>
+        public void Recenter(float subYaw, float subPitch)
         {
-            AimYaw = shipYaw;
-            AimPitch = shipPitch;
+            AimYaw = subYaw;
+            AimPitch = subPitch;
         }
 
         public static Vector3 DirectionFrom(float yaw, float pitch)

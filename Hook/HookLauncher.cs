@@ -30,6 +30,7 @@ namespace OkunGame
         private const float StepSize = 0.3f;         // flight is swept in steps this big so fast hooks can't skip a fish
         private const float StowDistance = 0.6f;     // how close to the port counts as "back home"
         private const float HeadScale = 1.2f;        // overall size of the hook head
+        private const float RangeEpsilon = 0.0001f; // float slack when deciding the range is used up
         private const int RopeSegments = 14;
 
         private static readonly Color RopeSlackColor = new Color(205, 205, 215, 255);
@@ -45,6 +46,9 @@ namespace OkunGame
         private float maxRange;
 
         public HookPhase Phase { get; private set; } = HookPhase.Stowed;
+
+        /// <summary>Where the hook head currently is (world space). Only meaningful while deployed.</summary>
+        public Vector3 HookPosition => hookPosition;
 
         /// <summary>The fish being homed in on (while flying) or tied to (while attached).</summary>
         public Fish? Target { get; private set; }
@@ -93,6 +97,13 @@ namespace OkunGame
 
             while (remaining > 0.0f)
             {
+                float rangeLeft = maxRange - distanceTravelled;
+                if (rangeLeft <= RangeEpsilon)
+                {
+                    GiveUp();
+                    return;
+                }
+
                 // Keep homing on the target as it swims
                 if (Target != null && Target.IsHookable)
                 {
@@ -100,7 +111,8 @@ namespace OkunGame
                     if (toTarget.LengthSquared() > 0.0001f) flightDirection = Vector3.Normalize(toTarget);
                 }
 
-                float step = MathF.Min(remaining, StepSize);
+                // Never step past the end of the range, so the hook reaches exactly 'maxRange' and no further
+                float step = MathF.Min(MathF.Min(remaining, StepSize), rangeLeft);
                 hookPosition += flightDirection * step;
                 distanceTravelled += step;
                 remaining -= step;
@@ -115,13 +127,19 @@ namespace OkunGame
                     return;
                 }
 
-                if (distanceTravelled >= maxRange)
+                if (maxRange - distanceTravelled <= RangeEpsilon)
                 {
-                    Target = null;
-                    Phase = HookPhase.Retracting;
+                    GiveUp();
                     return;
                 }
             }
+        }
+
+        /// <summary>Out of range with nothing caught: wind the hook back in.</summary>
+        private void GiveUp()
+        {
+            Target = null;
+            Phase = HookPhase.Retracting;
         }
 
         private void UpdateAttached(Vector3 port)
