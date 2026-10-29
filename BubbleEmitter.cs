@@ -5,34 +5,45 @@ using Raylib_cs;
 namespace OkunGame
 {
     /// <summary>
-    /// Continuously emits small rising bubbles from just behind the submarine.
-    /// Owns only its spawn timer - actual particle simulation happens in the shared
-    /// ParticleSystem it's given.
+    /// Emits small rising bubbles from just behind the submarine. The rate follows the submarine's speed:
+    /// a gentle trickle when it's stopped, a proper stream at full speed. Owns only its spawn accumulator -
+    /// actual particle simulation happens in the shared ParticleSystem it's given.
     /// </summary>
     public class BubbleEmitter
     {
-        private const float SpawnInterval = 0.05f; // ~20 bubbles/sec
+        private const float IdleRate = 4.0f;   // bubbles/sec when stopped
+        private const float FullRate = 30.0f;  // bubbles/sec at full speed
+        private const int MaxPerFrame = 6;     // safety cap so a long frame can't dump a huge burst
         private const float BubbleLifeTime = 2.5f;
         private const float RiseSpeed = 1.2f;
         private const float JitterStrength = 0.3f;
         private const float TrailOffset = 2.2f; // how far behind the sub's center bubbles spawn
 
         private readonly ParticleSystem particles;
-        private float spawnTimer;
+        private float spawnAccumulator;
 
         public BubbleEmitter(ParticleSystem particles)
         {
             this.particles = particles;
         }
 
-        public void Update(Vector3 subPosition, Vector3 subForward, float dt)
+        /// <param name="speedFraction">0..1, how fast the submarine is going relative to full speed.</param>
+        public void Update(Vector3 subPosition, Vector3 subForward, float speedFraction, float dt)
         {
-            spawnTimer -= dt;
-            if (spawnTimer <= 0.0f)
+            float rate = IdleRate + (FullRate - IdleRate) * Math.Clamp(speedFraction, 0.0f, 1.0f);
+            spawnAccumulator += rate * dt;
+
+            // Emit every bubble that's due. Accumulating (instead of "one per update") keeps the rate
+            // right at any frame rate, including long frames.
+            int spawned = 0;
+            while (spawnAccumulator >= 1.0f && spawned < MaxPerFrame)
             {
-                spawnTimer = SpawnInterval;
+                spawnAccumulator -= 1.0f;
                 SpawnBubble(subPosition, subForward);
+                spawned++;
             }
+
+            spawnAccumulator = MathF.Min(spawnAccumulator, 1.0f);
         }
 
         private void SpawnBubble(Vector3 subPosition, Vector3 subForward)

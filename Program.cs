@@ -49,15 +49,10 @@ namespace OkunGame
             SubmarineModel submarine = new SubmarineModel("Resources/Models/Sub_DD.glb", sceneShaders.ForModels, subModelScale);
             bool showSubBounds = false; // F2 toggles the debug bounding box
 
-            // 3. Submarine state
-            Vector3 subPosition = new Vector3(0.0f, 0.0f, 0.0f);
-            float subYaw = 0.0f;    // radians, heading — turned toward the aim cursor
-            float subPitch = 0.0f;  // radians, nose up/down — turned toward the aim cursor
-            float subRoll = 0.0f;   // degrees, bank left/right — driven by A/D
-
-            const float verticalSpeed = 5.0f;   // units/sec for W/S up-down
-            const float rollSpeed = 60.0f;      // degrees/sec for A/D roll
-            const float forwardSpeed = 4.0f;    // units/sec — sub cruises forward so steering has something to steer
+            // 3. Submarine: SubmarineController owns the pose (position, yaw, pitch, roll) and the speed.
+            // It starts at rest - hold Shift to accelerate. Tuning (top speed, acceleration, braking,
+            // coasting drag) lives at the top of Submarine/SubmarineController.cs.
+            SubmarineController sub = new SubmarineController();
 
             // Chase-camera placement, relative to the submarine's own forward direction.
             // Looking a little ahead of the sub (rather than at it) puts the sub low in the frame
@@ -107,32 +102,23 @@ namespace OkunGame
                 // slightly slow for that frame instead.
                 float dt = MathF.Min(Raylib.GetFrameTime(), 0.1f);
 
-                // ---- Mouse moves the aim cursor; the ship turns to face it ----
+                // ---- Mouse moves the aim cursor; the controller turns the ship to face it ----
                 Vector2 mouseDelta = Raylib.GetMouseDelta();
-                aim.ApplyMouse(mouseDelta, subYaw, subPitch);
-                if (Raylib.IsKeyPressed(KeyboardKey.C)) aim.Recenter(subYaw, subPitch);
-                aim.SteerShip(ref subYaw, ref subPitch, dt);
+                aim.ApplyMouse(mouseDelta, sub.Yaw, sub.Pitch);
+                if (Raylib.IsKeyPressed(KeyboardKey.C)) aim.Recenter(sub.Yaw, sub.Pitch);
 
-                // ---- W / S: submarine up and down (ballast, independent of heading) ----
-                if (Raylib.IsKeyDown(KeyboardKey.W)) subPosition.Y += verticalSpeed * dt;
-                if (Raylib.IsKeyDown(KeyboardKey.S)) subPosition.Y -= verticalSpeed * dt;
-
-                // ---- A / D: submarine roll left and right ----
-                if (Raylib.IsKeyDown(KeyboardKey.A)) subRoll -= rollSpeed * dt;
-                if (Raylib.IsKeyDown(KeyboardKey.D)) subRoll += rollSpeed * dt;
+                // ---- Keys -> input -> the controller moves the submarine (turning, speed, up/down, roll) ----
+                SubmarineInput input = SubmarineInputReader.Read();
+                sub.Update(input, aim, dt);
 
                 // ---- Debug toggles ----
                 if (Raylib.IsKeyPressed(KeyboardKey.F1)) debugFishColors = !debugFishColors;
                 if (Raylib.IsKeyPressed(KeyboardKey.F2)) showSubBounds = !showSubBounds;
 
-                // ---- Submarine's forward direction, from yaw & pitch ----
-                Vector3 subForward = AimCursor.DirectionFrom(subYaw, subPitch);
-
-                // Cruise forward along the nose so there's something to actually steer.
-                subPosition += subForward * forwardSpeed * dt;
+                Vector3 subForward = sub.Forward;
 
                 // ---- Hook: lock-on along the cursor, fire on click ----
-                Vector3 hookPort = submarine.LocalToWorld(SubmarineModel.HookPortLocal, subPosition, subYaw, subPitch, subRoll);
+                Vector3 hookPort = submarine.LocalToWorld(SubmarineModel.HookPortLocal, sub.Position, sub.Yaw, sub.Pitch, sub.RollDegrees);
                 Vector3 aimDirection = aim.Direction;
 
                 Fish? lockedFish = fishManager.GetFishAlongRay(hookPort, aimDirection, hookRange, lockOnAngle);
@@ -143,21 +129,21 @@ namespace OkunGame
                 }
 
                 // ---- Fish population + hook update ----
-                fishManager.Update(subPosition, dt);
+                fishManager.Update(sub.Position, dt);
                 hook.Update(hookPort, dt);
 
                 // ---- Particles ----
-                bubbleEmitter.Update(subPosition, subForward, dt);
+                bubbleEmitter.Update(sub.Position, subForward, sub.SpeedFraction, dt);
                 sedimentField.Update(dt);
                 particleSystem.Update(dt);
 
                 // ---- Chase camera: sits behind and above the sub, looking ahead along its nose ----
-                camera.Position = subPosition - subForward * cameraDistance + new Vector3(0.0f, cameraHeight, 0.0f);
-                camera.Target = subPosition + subForward * cameraLookAhead;
+                camera.Position = sub.Position - subForward * cameraDistance + new Vector3(0.0f, cameraHeight, 0.0f);
+                camera.Target = sub.Position + subForward * cameraLookAhead;
 
                 // Bank the camera with the sub's roll for a bit of feel - about the camera's own
                 // forward axis, so the bank looks the same whichever way the sub is heading
-                camera.Up = CameraMath.BankedUp(Vector3.Normalize(camera.Target - camera.Position), subRoll * (MathF.PI / 180.0f));
+                camera.Up = CameraMath.BankedUp(Vector3.Normalize(camera.Target - camera.Position), sub.RollDegrees * (MathF.PI / 180.0f));
 
                 // Keep both shader variants' camera-position uniform current every frame
                 sceneShaders.SetViewPosition(camera.Position);
@@ -170,7 +156,7 @@ namespace OkunGame
 
                     // The submarine is a real model. DrawModel uses each material's own shader
                     // (the model variant, bound in SubmarineModel), so no BeginShaderMode here.
-                    submarine.Draw(subPosition, subYaw, subPitch, subRoll);
+                    submarine.Draw(sub.Position, sub.Yaw, sub.Pitch, sub.RollDegrees);
 
                     // Fish, sediment, particles and the hook are immediate-mode shapes, which need
                     // the primitive variant of the shader applied via BeginShaderMode.
@@ -188,10 +174,10 @@ namespace OkunGame
                 if (showSubBounds)
                 {
                     Rlgl.PushMatrix();
-                        Rlgl.Translatef(subPosition.X, subPosition.Y, subPosition.Z);
-                        Rlgl.Rotatef(subYaw * (180.0f / MathF.PI), 0.0f, 1.0f, 0.0f);
-                        Rlgl.Rotatef(-subPitch * (180.0f / MathF.PI), 1.0f, 0.0f, 0.0f);
-                        Rlgl.Rotatef(subRoll, 0.0f, 0.0f, 1.0f);
+                        Rlgl.Translatef(sub.Position.X, sub.Position.Y, sub.Position.Z);
+                        Rlgl.Rotatef(sub.Yaw * (180.0f / MathF.PI), 0.0f, 1.0f, 0.0f);
+                        Rlgl.Rotatef(-sub.Pitch * (180.0f / MathF.PI), 1.0f, 0.0f, 0.0f);
+                        Rlgl.Rotatef(sub.RollDegrees, 0.0f, 0.0f, 1.0f);
                         Raylib.DrawCubeWires(Vector3.Zero, submarine.Size.X, submarine.Size.Y, submarine.Size.Z, Color.White);
                     Rlgl.PopMatrix();
                 }
@@ -201,8 +187,9 @@ namespace OkunGame
                 Raylib.EndMode3D();
 
                 // ---- HUD ----
-                float currentDepth = worldBoundsMax.Y - subPosition.Y;
+                float currentDepth = worldBoundsMax.Y - sub.Position.Y;
                 hud.DrawDepthGauge(currentDepth, maxDepthRange);
+                hud.DrawSpeedGauge(sub.Speed, -SubmarineController.MaxReverseSpeed, SubmarineController.MaxForwardSpeed);
                 hud.DrawFishCounter(fishManager.CaughtCount, fishManager.Count);
 
                 // ---- Cursor: where the aim points, where the nose points, and what's targeted ----
@@ -227,7 +214,7 @@ namespace OkunGame
 
                 // Small, unobtrusive controls hint - still a dev build for now
                 Raylib.DrawText(
-                    "Mouse: aim & steer | Click/H: fire hook | C: recenter | W/S: up-down | A/D: roll | F1: fish colors | F2: sub bounds",
+                    "Mouse: aim & steer | Shift/Ctrl: accelerate/brake | X: all stop | Click/H: fire hook | C: recenter | W/S: up-down | A/D: roll | F1: fish colors | F2: sub bounds",
                     10, screenHeight - 55, 14, new Color(255, 255, 255, 140)
                 );
 

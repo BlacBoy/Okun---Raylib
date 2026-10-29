@@ -19,7 +19,9 @@ and the world around it (terrain, fish models, weapons, sound) is still being bu
 - **Real submarine model** - a `.glb` model, lit correctly as it yaws, pitches and rolls
 - **Underwater atmosphere** - distance fog plus directional lighting through a custom shader
 - **Particles** - bubble trail off the sub, drifting sediment, capture bursts, and a hook trail
-- **HUD** - depth gauge, fish-caught counter, and a cursor that changes shape and color by mode
+- **Momentum-based movement** - hold to accelerate, release and the sub coasts to a stop through the water,
+  brake to stop faster (and reverse); steering works at any speed, including on the spot
+- **HUD** - depth gauge, speed gauge, fish-caught counter, and a cursor that changes shape and color by mode
 
 ## Requirements
 
@@ -54,6 +56,9 @@ look, rather than silently drawing nothing.
 | Mouse            | Move the aim cursor; the submarine turns to face it                                 |
 | Left click / `H` | Fire the hook (homes in on a locked fish, otherwise flies straight along the aim)   |
 | `C`              | Recenter the cursor on the submarine's nose                                         |
+| `Shift`          | Accelerate (up to 8 m/s)                                                            |
+| `Ctrl`           | Brake; keep holding to reverse (up to 2 m/s)                                        |
+| `X`              | All stop: brake hard to a standstill (never into reverse)                           |
 | `W` / `S`        | Move the submarine up / down                                                        |
 | `A` / `D`        | Roll left / right                                                                   |
 | `F1`             | Toggle fish debug colors (state colors vs. species colors)                          |
@@ -66,7 +71,9 @@ cursor is that direction projected onto the screen. The aim can only lead the sh
 (35° sideways, 20° up or down) so the cursor always stays in view. A small ring marks where the
 submarine's nose is actually pointing.
 
-The submarine cruises forward at a constant speed for now, so there is something to steer.
+The submarine starts at rest. Hold `Shift` to accelerate; let go and it coasts down slowly (about 6 s from
+full speed to a crawl) rather than stopping dead; `Ctrl` brakes it faster. Turning doesn't depend on speed,
+so you can swing round on the spot to line up a fish.
 
 ### Cursor modes
 
@@ -99,6 +106,9 @@ the submarine is heading (`CameraMath.BankedUp`).
 - **Fish** - each `Fish` (idle fish keep their wander targets inside the world; panicking fish slide along walls instead of pinning against them) delegates to a `FishState` (`IdleSwimState`, `PanicState`, `ResistingState`,
   `CapturedState`). The only thing anything outside the fish code needs to call is `Fish.Hook()`.
   `FishManager` owns spawning, updating, drawing, lock-on queries and collection.
+- **Movement** - `SubmarineController` owns the submarine's pose and speed and advances them each frame. It has
+  no Raylib dependency: `SubmarineInputReader` is the only place that reads keys (rebind controls there) and
+  hands it a plain `SubmarineInput`, which is what makes the movement testable without a window.
 - **Hook** - `HookLauncher` handles the hook's flight, attachment, rope, and retraction. It only talks
   to fish through `Fish.Hook()`, so it can become `Harpoon : Weapon` when the weapon base class exists.
 - **Rendering** - fish, particles and the hook are raylib immediate-mode shapes; the submarine is a
@@ -117,7 +127,11 @@ Okun/
 ├── CursorRenderer.cs           # Cursor shapes/colors per mode (the Styles table)
 ├── HudRenderer.cs              # Depth gauge and fish counter
 ├── Controls/
-│   └── AimCursor.cs            # World-space aim + turning the ship toward it
+│   ├── AimCursor.cs            # World-space aim + turning the ship toward it
+│   └── SubmarineInputReader.cs # The one place keys are read; rebind controls here
+├── Submarine/
+│   ├── SubmarineController.cs  # Pose + speed: acceleration, braking, coasting, turning
+│   └── SubmarineInput.cs       # Plain input values the controller consumes
 ├── Hook/
 │   └── HookLauncher.cs         # Hook flight, rope, hook head, retraction
 ├── Fish/
@@ -129,7 +143,7 @@ Okun/
 ├── Particles/
 │   ├── Particle.cs
 │   ├── ParticleSystem.cs       # Pool for spawn-then-die particles
-│   ├── BubbleEmitter.cs        # Bubble trail off the submarine
+│   ├── BubbleEmitter.cs        # Bubble trail off the submarine (denser the faster it goes)
 │   ├── CaptureBurst.cs         # One-off burst (fish capture, hook bite)
 │   └── SedimentField.cs        # Ambient drifting specks
 ├── Rendering/
@@ -153,7 +167,7 @@ The folders are organizational only - the SDK compiles every `.cs` file regardle
 - Further camera work
 - A `Weapon` base class that harpoon, drill and others inherit from (`HookLauncher` becomes the first)
 - Cursor modes matching the earlier Godot version of the game
-- A throttle (the submarine currently cruises at a fixed speed)
+- A world boundary or world that follows the submarine (it can currently leave the play area)
 - Fish that can break free, and line-tension mechanics
 - Submarine polish: glowing headlights and a see-through windscreen (the lighting shader has no
   emission support yet)
@@ -164,6 +178,7 @@ The folders are organizational only - the SDK compiles every `.cs` file regardle
 This is an early-stage prototype. Tuning values are constants near the top of the files that own them:
 
 - `Program.cs` - world size, camera distance/height/look-ahead, hook range, lock-on angle, model scale
+- `Submarine/SubmarineController.cs` - top speed, reverse speed, acceleration, braking, coasting drag, up/down and roll rates
 - `Controls/AimCursor.cs` - mouse sensitivity, turn rate and gain, how far the aim can lead the ship
 - `CursorRenderer.cs` - the look of every cursor mode
 - `Hook/HookLauncher.cs` - hook speed, rope look, hook size

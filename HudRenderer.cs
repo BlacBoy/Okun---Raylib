@@ -5,7 +5,7 @@ using Raylib_cs;
 namespace OkunGame
 {
     /// <summary>
-    /// Draws the static 2D HUD elements: depth gauge and fish-caught counter. The aim
+    /// Draws the static 2D HUD elements: depth gauge, speed gauge and fish-caught counter. The aim
     /// cursor lives in CursorRenderer. Kept separate from Program.cs so HUD layout/style changes don't touch
     /// gameplay code, and so future HUD elements (oxygen, weapon charge, etc.) have an
     /// obvious place to live. Everything here is vector-drawn (no texture assets yet).
@@ -14,6 +14,9 @@ namespace OkunGame
     {
         private readonly int screenWidth;
         private readonly int screenHeight;
+
+        // Speed gauge sits on the right edge, mirroring the depth gauge on the left
+        private const int SpeedGaugeRightMargin = 30;
 
         // Depth gauge layout
         private const int GaugeX = 30;
@@ -55,6 +58,41 @@ namespace OkunGame
 
             Raylib.DrawText("DEPTH", GaugeX - 4, GaugeY - 24, 14, Color.LightGray);
             Raylib.DrawText($"{currentDepth:0}m", GaugeX + GaugeWidth + 16, markerY - 8, 16, Color.White);
+        }
+
+        /// <summary>
+        /// Vertical speed gauge on the right edge. The zero line is marked; forward speed fills upward from it
+        /// (blue) and reverse fills downward (orange).
+        /// </summary>
+        public void DrawSpeedGauge(float speed, float minSpeed, float maxSpeed)
+        {
+            int x = screenWidth - SpeedGaugeRightMargin - GaugeWidth;
+            int bottom = GaugeY + GaugeHeight;
+            float range = maxSpeed - minSpeed;
+
+            float clamped = Math.Clamp(speed, minSpeed, maxSpeed);
+            int zeroY = bottom - (int)(GaugeHeight * (0.0f - minSpeed) / range);
+            int speedY = bottom - (int)(GaugeHeight * (clamped - minSpeed) / range);
+
+            Raylib.DrawRectangle(x, GaugeY, GaugeWidth, GaugeHeight, new Color(0, 0, 0, 120));
+
+            if (speedY < zeroY) Raylib.DrawRectangle(x, speedY, GaugeWidth, zeroY - speedY, Color.SkyBlue);
+            else if (speedY > zeroY) Raylib.DrawRectangle(x, zeroY, GaugeWidth, speedY - zeroY, Color.Orange);
+
+            Raylib.DrawRectangleLines(x, GaugeY, GaugeWidth, GaugeHeight, new Color(255, 255, 255, 160));
+            Raylib.DrawLine(x - 6, zeroY, x + GaugeWidth + 6, zeroY, new Color(255, 255, 255, 200)); // zero line
+
+            // Current-speed marker, pointing at the gauge from the left
+            Raylib.DrawTriangle(
+                new Vector2(x - 4, speedY),
+                new Vector2(x - 12, speedY + 5),
+                new Vector2(x - 12, speedY - 5),
+                Color.White
+            );
+
+            string label = $"{speed:0.0} m/s";
+            Raylib.DrawText(label, x - 18 - Raylib.MeasureText(label, 16), speedY - 8, 16, Color.White);
+            Raylib.DrawText("SPEED", x - 6, GaugeY - 24, 14, Color.LightGray);
         }
 
         /// <summary>
